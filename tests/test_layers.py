@@ -11,9 +11,6 @@ import numpy as np
 from keras2onnx.proto import keras, is_tf_keras, get_opset_number_from_onnx, is_keras_older_than, is_keras_later_than
 from test_utils import run_onnx_runtime
 
-import importlib
-importlib.import_module('test_utils')
-
 K = keras.backend
 Activation = keras.layers.Activation
 Add = keras.layers.Add
