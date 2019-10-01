@@ -14,6 +14,7 @@ onnxconverter-common = ">=1.5.3"
 fire = "*"
 tensorflow = "==1.13.1"
 keras = "*"
+pillow = "*"
 
 [requires]
 python_version = "3.6"
