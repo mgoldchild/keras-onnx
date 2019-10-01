@@ -15,6 +15,9 @@ fire = "*"
 tensorflow = "==1.13.1"
 keras = "*"
 pillow = "*"
+keras2onnx = "*"
+matplotlib = "*"
+onnxruntime = "*"
 
 [requires]
 python_version = "3.6"
