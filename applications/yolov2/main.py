@@ -11,7 +11,7 @@ def conv_model():
     onnx_model = keras2onnx.convert_keras(
         model=keras_model, target_opset=target_opset, channel_first_inputs="input_1"
     )
-    onnx.save_model(onnx_model, "onnx_tiny_voc.onnx")
+    onnx.save_model(onnx_model, "onnx_yolov2_tiny_voc.onnx")
 
 
 def sigmoid(x, derivative=False):
@@ -28,11 +28,12 @@ def detect_img():
     - https://github.com/Azure/MachineLearningNotebooks/blob/master/how-to-use-azureml/deployment/onnx/onnx-convert-aml-deploy-tinyyolo.ipynb
     - https://tech-blog.optim.co.jp/entry/2018/12/05/160831
     - https://qiita.com/miyamotok0105/items/1aa653512dd4657401db
+    - https://machinethink.net/blog/object-detection-with-yolo/
     """
-    import cv2
     import onnxruntime
 
     sess = onnxruntime.InferenceSession("./tiny_yolov2/Model.onnx")
+    # sess = onnxruntime.InferenceSession("onnx_tiny_voc.onnx")
     input_name = sess.get_inputs()[0].name
     img = Image.open("dog.jpg")
     img = img.resize((416, 416))  # for tiny_yolov2
@@ -45,7 +46,7 @@ def detect_img():
     out = out[0][0]
     print("shape", np.shape(out))
     numClasses = 20
-    anchors = [1.08, 1.19, 3.42, 4.41, 6.63, 11.38, 9.42, 5.11, 16.62, 10.52]  # 10個
+    anchors = [1.08, 1.19, 3.42, 4.41, 6.63, 11.38, 9.42, 5.11, 16.62, 10.52]
 
     # Color
     clut = [
@@ -96,17 +97,22 @@ def detect_img():
         "tvmonitor",
     ]
 
-    k = 5  # Dimension Clusters
+    bb_cnt = 5  # number of bounding box prediction in each ancohrs
     draw = ImageDraw.Draw(img)
     for cy in range(0, 13):
         for cx in range(0, 13):
-            for b in range(0, k):
-                channel = b * (numClasses + k)
+            for b in range(0, bb_cnt):
+                channel = b * (numClasses + bb_cnt)
                 tx = out[channel][cy][cx]
                 ty = out[channel + 1][cy][cx]
                 tw = out[channel + 2][cy][cx]
                 th = out[channel + 3][cy][cx]
                 tc = out[channel + 4][cy][cx]
+                # tx = out[cy][cx][channel]
+                # ty = out[cy][cx][channel + 1]
+                # tw = out[cy][cx][channel + 2]
+                # th = out[cy][cx][channel + 3]
+                # tc = out[cy][cx][channel + 4]
 
                 x = (float(cx) + sigmoid(tx)) * 32
                 y = (float(cy) + sigmoid(ty)) * 32
@@ -114,11 +120,14 @@ def detect_img():
                 w = np.exp(tw) * 32 * anchors[2 * b]
                 h = np.exp(th) * 32 * anchors[2 * b + 1]
 
-                confidence = sigmoid(tc)  # box内に物体が存在する確率
+                # if tc < -1:
+                #     tc = -1
+                confidence = sigmoid(tc)
 
                 classes = np.zeros(numClasses)
                 for c in range(0, numClasses):
-                    classes[c] = out[channel + k + c][cy][cx]
+                    classes[c] = out[channel + bb_cnt + c][cy][cx]
+                    # classes[c] = out[cy][cx][channel + bb_cnt + c]
                 classes = softmax(classes)
                 detectedClass = classes.argmax()
 
