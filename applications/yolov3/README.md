@@ -12,3 +12,16 @@ export PYTHONPATH=$(the keras-yolo3 path)
 python yolov3.py <image url>
 ```
 The unit test is added in our nightly build, see [here](https://github.com/onnx/keras-onnx/blob/master/applications/nightly_build/test_yolov3.py)
+
+
+# CMDs
+
+```
+$ python --version
+Python 3.6.0
+
+$ export PYTHONPATH=/home/mike/Workspace/keras-yolo3/
+$ echo $PYTHONPATH
+/home/mike/Workspace/keras-yolo3/
+$ python yolov3.py /home/mike/Workspace/keras-yolo3/nichijo.jpg
+```
