@@ -1,0 +1,144 @@
+import keras2onnx
+import numpy as np
+import onnx
+from keras.models import load_model
+from PIL import Image, ImageDraw, ImageFont
+
+
+def conv_model():
+    target_opset = 8
+    keras_model = load_model("yolov2-tiny-voc.h5")
+    onnx_model = keras2onnx.convert_keras(
+        model=keras_model, target_opset=target_opset, channel_first_inputs="input_1"
+    )
+    onnx.save_model(onnx_model, "onnx_tiny_voc.onnx")
+
+
+def sigmoid(x, derivative=False):
+    return x * (1 - x) if derivative else 1 / (1 + np.exp(-x))
+
+
+def softmax(x):
+    scoreMatExp = np.exp(np.asarray(x))
+    return scoreMatExp / scoreMatExp.sum(0)
+
+
+def detect_img():
+    """
+    - https://github.com/Azure/MachineLearningNotebooks/blob/master/how-to-use-azureml/deployment/onnx/onnx-convert-aml-deploy-tinyyolo.ipynb
+    - https://tech-blog.optim.co.jp/entry/2018/12/05/160831
+    - https://qiita.com/miyamotok0105/items/1aa653512dd4657401db
+    """
+    import cv2
+    import onnxruntime
+
+    sess = onnxruntime.InferenceSession("./tiny_yolov2/Model.onnx")
+    input_name = sess.get_inputs()[0].name
+    img = Image.open("dog.jpg")
+    img = img.resize((416, 416))  # for tiny_yolov2
+    x = np.asarray(img)
+    x = x.transpose(2, 0, 1)
+    x = x.reshape(1, 3, 416, 416)
+    print(x.shape)
+
+    out = sess.run(None, {input_name: x.astype(np.float32)})
+    out = out[0][0]
+    print("shape", np.shape(out))
+    numClasses = 20
+    anchors = [1.08, 1.19, 3.42, 4.41, 6.63, 11.38, 9.42, 5.11, 16.62, 10.52]  # 10個
+
+    # Color
+    clut = [
+        (0, 0, 0),
+        (255, 0, 0),
+        (255, 0, 255),
+        (0, 0, 255),
+        (0, 255, 0),
+        (0, 255, 128),
+        (128, 255, 0),
+        (128, 128, 0),
+        (0, 128, 255),
+        (128, 0, 128),
+        (255, 0, 128),
+        (128, 0, 255),
+        (255, 128, 128),
+        (128, 255, 128),
+        (255, 255, 0),
+        (255, 0, 128),
+        (128, 0, 255),
+        (255, 128, 128),
+        (128, 255, 128),
+        (255, 255, 0),
+    ]
+    print(len(clut))
+
+    # Label
+    label = [
+        "aeroplane",
+        "bicycle",
+        "bird",
+        "boat",
+        "bottle",
+        "bus",
+        "car",
+        "cat",
+        "chair",
+        "cow",
+        "diningtable",
+        "dog",
+        "horse",
+        "motorbike",
+        "person",
+        "pottedplant",
+        "sheep",
+        "sofa",
+        "train",
+        "tvmonitor",
+    ]
+
+    k = 5  # Dimension Clusters
+    draw = ImageDraw.Draw(img)
+    for cy in range(0, 13):
+        for cx in range(0, 13):
+            for b in range(0, k):
+                channel = b * (numClasses + k)
+                tx = out[channel][cy][cx]
+                ty = out[channel + 1][cy][cx]
+                tw = out[channel + 2][cy][cx]
+                th = out[channel + 3][cy][cx]
+                tc = out[channel + 4][cy][cx]
+
+                x = (float(cx) + sigmoid(tx)) * 32
+                y = (float(cy) + sigmoid(ty)) * 32
+
+                w = np.exp(tw) * 32 * anchors[2 * b]
+                h = np.exp(th) * 32 * anchors[2 * b + 1]
+
+                confidence = sigmoid(tc)  # box内に物体が存在する確率
+
+                classes = np.zeros(numClasses)
+                for c in range(0, numClasses):
+                    classes[c] = out[channel + k + c][cy][cx]
+                classes = softmax(classes)
+                detectedClass = classes.argmax()
+
+                if 0.5 < classes[detectedClass] * confidence:
+                    print("probability of classes", classes)
+                    color = clut[detectedClass]
+                    print(
+                        detectedClass,
+                        label[detectedClass],
+                        classes[detectedClass] * confidence,
+                    )
+                    x = x - w / 2
+                    y = y - h / 2
+                    draw.line((x, y, x + w, y), fill=color)
+                    draw.line((x, y, x, y + h), fill=color)
+                    draw.line((x + w, y, x + w, y + h), fill=color)
+                    draw.line((x, y + h, x + w, y + h), fill=color)
+    img.save("result.png")
+
+
+if __name__ == "__main__":
+    # conv_model()
+    detect_img()
