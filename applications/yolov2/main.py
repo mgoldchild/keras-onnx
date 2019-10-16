@@ -1,15 +1,16 @@
-import keras2onnx
 import numpy as np
-import onnx
 from keras.models import load_model
 from PIL import Image, ImageDraw, ImageFont
+import keras2onnx
+import onnx
 
 ONNX_FILE_NAME = "onnx_yolov2_tiny_voc.onnx"
+SRC_FILE_NAME = "yolov2-tiny-voc.h5"
 
 
 def conv_model():
     target_opset = 8
-    keras_model = load_model("yolov2-tiny-voc.h5")
+    keras_model = load_model(SRC_FILE_NAME)
     onnx_model = keras2onnx.convert_keras(
         model=keras_model, target_opset=target_opset, channel_first_inputs="input_1"
     )
@@ -37,7 +38,7 @@ def detect_img():
 
     sess = onnxruntime.InferenceSession(ONNX_FILE_NAME)
     input_name = sess.get_inputs()[0].name
-    img = Image.open("person.jpg")
+    img = Image.open("dog.jpg")
     img = img.resize((416, 416))  # for tiny_yolov2
     image_data = np.array(img, dtype="float32")
     image_data /= 255.0
@@ -132,7 +133,7 @@ def detect_img():
                 classes = softmax(classes)
                 detectedClass = classes.argmax()
 
-                if 0.5 < classes[detectedClass] * confidence:
+                if 0.3 < classes[detectedClass] * confidence:
                     print("probability of classes", classes)
                     color = clut[detectedClass]
                     print(
