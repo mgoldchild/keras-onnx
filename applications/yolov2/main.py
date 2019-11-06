@@ -1,11 +1,12 @@
+import keras2onnx
 import numpy as np
+import onnx
 from keras.models import load_model
 from PIL import Image, ImageDraw, ImageFont
-import keras2onnx
-import onnx
 
-ONNX_FILE_NAME = "onnx_yolov2_tiny_voc.onnx"
-SRC_FILE_NAME = "yolov2-tiny-voc.h5"
+ONNX_FILE_NAME = "onnx_yolov2_tiny_voc800.onnx"
+SRC_FILE_NAME = "../../../YAD2K/model_data/yolov2-tiny-voc800.h5"
+NUM_OF_CLASS_= 2
 
 
 def conv_model():
@@ -26,7 +27,7 @@ def softmax(x):
     return scoreMatExp / scoreMatExp.sum(0)
 
 
-def detect_img():
+def detect_img(image_name):
     """
     - https://github.com/Azure/MachineLearningNotebooks/blob/master/how-to-use-azureml/deployment/onnx/onnx-convert-aml-deploy-tinyyolo.ipynb
     - https://tech-blog.optim.co.jp/entry/2018/12/05/160831
@@ -38,7 +39,7 @@ def detect_img():
 
     sess = onnxruntime.InferenceSession(ONNX_FILE_NAME)
     input_name = sess.get_inputs()[0].name
-    img = Image.open("dog.jpg")
+    img = Image.open(image_name)
     img = img.resize((416, 416))  # for tiny_yolov2
     image_data = np.array(img, dtype="float32")
     image_data /= 255.0
@@ -49,7 +50,6 @@ def detect_img():
     out = sess.run(None, {input_name: image_data.astype(np.float32)})
     out = out[0][0]
     print("shape", np.shape(out))
-    numClasses = 20
     anchors = [1.08, 1.19, 3.42, 4.41, 6.63, 11.38, 9.42, 5.11, 16.62, 10.52]
 
     # Color
@@ -106,7 +106,7 @@ def detect_img():
     for cy in range(0, 13):
         for cx in range(0, 13):
             for b in range(0, bb_cnt):
-                channel = b * (numClasses + bb_cnt)
+                channel = b * (NUM_OF_CLASS_ + bb_cnt)
                 # tx = out[channel][cy][cx]
                 # ty = out[channel + 1][cy][cx]
                 # tw = out[channel + 2][cy][cx]
@@ -126,8 +126,8 @@ def detect_img():
 
                 confidence = sigmoid(tc)
 
-                classes = np.zeros(numClasses)
-                for c in range(0, numClasses):
+                classes = np.zeros(NUM_OF_CLASS_)
+                for c in range(0, NUM_OF_CLASS_):
                     # classes[c] = out[channel + bb_cnt + c][cy][cx]
                     classes[c] = out[cy][cx][channel + bb_cnt + c]
                 classes = softmax(classes)
@@ -147,9 +147,12 @@ def detect_img():
                     draw.line((x, y, x, y + h), fill=color)
                     draw.line((x + w, y, x + w, y + h), fill=color)
                     draw.line((x, y + h, x + w, y + h), fill=color)
-    img.save("result.png")
+    filename = image_name.split(".")[0]
+    extension = image_name.split(".")[1]
+    img.save(f"{filename}-output.{extension}")
 
 
 if __name__ == "__main__":
     # conv_model()
-    detect_img()
+    detect_img("S001.jpg")
+    detect_img("S002.jpg")
